@@ -1,10 +1,10 @@
 {
     "title": {
         "en": "Donut Chart",
-        "de": "Kreisdiagramm",
+        "de": "Donut-Diagramm",
         "fr": "Diagramme temporel"
     },
-    "version": "0.8",
+    "version": "0.9.1",
     "extends": "pie-chart",
     "author": {
         "name": "gka",

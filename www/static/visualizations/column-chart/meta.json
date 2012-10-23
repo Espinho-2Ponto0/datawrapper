@@ -1,10 +1,10 @@
 {
     "title": {
         "en": "Column Chart",
-        "de": "Balkendiagramm (vert.)",
+        "de": "Balken (vertikal)",
         "fr": "Diagramme temporel"
     },
-    "version": "0.8",
+    "version": "0.9.1",
     "dimensions": 2,
     "extends": "raphael-chart",
     "author": {

@@ -1,10 +1,10 @@
 {
     "title": {
         "en": "Bar Chart",
-        "de": "Balkendiagramm (horiz)",
+        "de": "Balken (horizontal)",
         "fr": "Diagramme temporel"
     },
-    "version": "0.8",
+    "version": "0.9.1",
     "extends": "raphael-chart",
     "author": {
         "name": "gka",

@@ -17,6 +17,7 @@
             ds = me.dataset,
             bpad = me.theme.padding.bottom,
             directLabeling = me.get('direct-labeling'),
+            baseCol = me.get('base-color', 0),
             scales = me.__scales = {
                 x: me.xScale(),
                 y: me.yScale()
@@ -91,7 +92,15 @@
                 sw = me.getSeriesLineWidth(col);
 
                 if (true || !directLabeling) {
-                    me.setSeriesColor(col, me.theme.colors.palette[index]);
+                    var palette = me.theme.colors.palette.slice();
+                    for (var i=0; i < baseCol; i++) palette.push(palette.shift());
+                    if (all_series.length > palette.length) {
+                        // add variations of palette colors
+                        $.each(palette, function(i, col) {
+                            palette.push(d3.cie.lch(d3.rgb(col)).darker(-2).toString());
+                        });
+                    }
+                    me.setSeriesColor(col, palette[(index + baseCol) % palette.length]);
                 }
 
                 var strokeColor = me.getSeriesColor(col);
@@ -173,53 +182,8 @@
             return Math.round(this.__scales.x.invert(x-10));
         },
 
-        showTooltip: function(series, row, x, y) {
-            var me = this,
-                xval = me.chart.rowLabel(row),
-                yval = series.data[row],
-                tt = $('.tooltip'),
-                yr = me.__scales.y(yval);
-
-            x = me.__scales.x(row);
-            y = yr + me.__root.offset().top;
-
-            if (tt) {
-                $('.xval', tt).html(xval);
-                $('.yval', tt).html(me.chart.formatValue(yval, true));
-                if (me.chart.hasRowHeader()) {
-                    $('.xlabel', tt).html(me.chart.rowHeader().name);
-                }
-                $('.ylabel', tt).html(series.name);
-
-                tt.css({
-                    position: 'absolute',
-                    top: (y -tt.outerHeight()-10)+'px',
-                    left: (x - tt.outerWidth()*0.5)+'px'
-                });
-                tt.show();
-            }
-
-            if (me.theme.lineChart.hoverDotRadius) {
-                me.hoverDot.attr({
-                    cx: x,
-                    cy: yr,
-                    r: me.theme.lineChart.hoverDotRadius,
-                    stroke: me.getSeriesColor(series),
-                    'stroke-width': 1.5,
-                    fill: '#fff'
-                }).data('series', series).show();
-            }
-        },
-
         getSeriesLineWidth: function(series) {
             return this.theme.lineChart.strokeWidth['highlight'];
-        },
-
-        hideTooltip: function() {
-            $('.tooltip').hide();
-            if (this.theme.lineHoverDotRadius) {
-                this.hoverDot.hide();
-            }
         },
 
         computeAspectRatio: function() {
@@ -311,7 +275,7 @@
             if (me.chart.hasRowHeader()) {
                 var last_label_x = -100, min_label_distance = rotate45 ? 30 : 40;
                 _.each(me.chart.rowLabels(), function(val, i) {
-
+                    min_label_distance = Math.max(min_label_distance, me.labelWidth(val)+10);
                 });
                 _.each(me.chart.rowLabels(), function(val, i) {
                     var x = me.__scales.x(i),
@@ -348,7 +312,83 @@
                     if (h) lbl.addClass('highlighted');
                 });
             });
+        },
+
+        onMouseMove: function(e) {
+            var me = this,
+                x = e.pageX,
+                y = e.pageY,
+                series = this.getSeriesByPoint(x, y),
+                row = this.getDataRowByPoint(x, y),
+                hoveredNode = series !== null;
+
+            if (!series) series = me.getSeriesByLabel();
+
+            if (!series) {
+                // nothing hovered
+                clearTimeout(me.__mouseOverTimer);
+                me.__mouseOutTimer = setTimeout(function() {
+                    clearTimeout(me.__mouseOverTimer);
+                    clearTimeout(me.__mouseOutTimer);
+                    if (me.theme.hover) me.hoverSeries();
+                    if (me.theme.tooltip) me.hideTooltip();
+                }, 200);
+            } else {
+                if (me.__mouseOutTimer) clearTimeout(me.__mouseOutTimer);
+                me.__mouseOverTimer = setTimeout(function() {
+                    clearTimeout(me.__mouseOverTimer);
+                    clearTimeout(me.__mouseOutTimer);
+                    if (me.theme.hover) me.hoverSeries(series);
+                    if (me.theme.tooltip && hoveredNode) me.showTooltip(series, row, x, y);
+                }, 100);
+            }
+        },
+
+        showTooltip: function(series, row, x, y) {
+            var me = this,
+                xval = me.chart.rowLabel(row),
+                yval = series.data[row],
+                tt = $('.tooltip'),
+                yr = me.__scales.y(yval);
+
+            x = me.__scales.x(row);
+            y = yr + me.__root.offset().top;
+
+            if (tt) {
+                $('.xval', tt).html(xval);
+                $('.yval', tt).html(me.chart.formatValue(yval, true));
+                if (me.chart.hasRowHeader()) {
+                    $('.xlabel', tt).html(me.chart.rowHeader().name);
+                }
+                $('.ylabel', tt).html(series.name);
+
+                tt.css({
+                    position: 'absolute',
+                    top: (y -tt.outerHeight()-10)+'px',
+                    left: (x - tt.outerWidth()*0.5)+'px'
+                });
+                tt.show();
+            }
+
+            if (me.theme.lineChart.hoverDotRadius) {
+                me.hoverDot.attr({
+                    cx: x,
+                    cy: yr,
+                    r: me.theme.lineChart.hoverDotRadius,
+                    stroke: me.getSeriesColor(series),
+                    'stroke-width': 1.5,
+                    fill: '#fff'
+                }).data('series', series).show();
+            }
+        },
+
+        hideTooltip: function() {
+            $('.tooltip').hide();
+            if (this.theme.lineHoverDotRadius) {
+                this.hoverDot.hide();
+            }
         }
+
 
     });
 

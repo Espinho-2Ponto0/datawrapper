@@ -12,9 +12,10 @@ body.chart {
     overflow-x:hidden;
 }
 
-.widget {
-    background: #E6E3E0;
+.widget, .line-chart .label span {
+    background: #E6E3E0!important;
 }
+
 
 .widget .widget-header {
     background: #666666;
@@ -54,7 +55,7 @@ body.chart {
     font-weight: bold;
 }
 
-.label.highlighted.reverse span {
+.label.inverted span {
     color: #fff;
 }
 

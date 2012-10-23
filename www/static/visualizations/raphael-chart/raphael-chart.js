@@ -15,10 +15,12 @@
         },
 
         setRoot: function(el) {
-            this.__root = el;
+            var me = this;
+            me.__root = el;
             el.css({
                 position: 'relative'
             });
+            el.addClass(me.chart.get('type'));
         },
 
         getSize: function() {
@@ -229,7 +231,9 @@
         },
 
         getSeriesColor: function(series, row, useNegativeColor, colorful) {
-            var me = this, color;
+            var me = this,
+                palette =me.theme.colors.palette,
+                color;
             // use a different color, if set via setSeriesColor
             if (useNegativeColor) {
                 color = me.theme.colors[series.data[row] < 0 ? 'negative' : 'positive'];
@@ -238,22 +242,22 @@
                     color = me.__customSeriesColors[series.name];
                 else if (me.__customRowColors && me.__customRowColors[row])
                     color = me.__customRowColors[row];
-                else color = me.theme.colors.palette[0];
+                else color = palette[Math.min(me.get('base-color', 0), palette.length-1)];
             }
 
-            var hsl = d3.hsl(color), lch = d3.cie.lch(d3.rgb(color));
+            var hsl = d3.hsl(color), lch = d3.cie.lch(d3.rgb(color)),
+                bg = d3.rgb(me.theme.colors.background),
+                bglch = d3.cie.lch(bg);
             if (series && !me.chart.isHighlighted(series)) {
                 // dim color
-                hsl.s = 0.2;
-                hsl.l = Math.min(0.85, hsl.l * 1.5);
-                console.log(lch.l);
-                lch.c *= 0.3;
-                lch.l = 90;// Math.min(90, lch.l * 1.5);
+                // hsl.s = 0.2;
+                // hsl.l = Math.min(0.85, hsl.l * 1.5);
+                // lch.c *= 0.3;
+                // lch.l = 90;// Math.min(90, lch.l * 1.5);
+                lch = d3.interpolateRgb(d3.rgb(color), bg)(bglch.l < 60 ? 0.9 : 0.73);
                 //lch.l = Math.min(1.5, lch.l * 1.5);
             } else if (series && me.chart.hasHighlight() && me.chart.isHighlighted(series)) {
-                hsl.l = Math.max(0.46, hsl.l * 0.5);
-                hsl.s *= 1.4;
-                lch.l *= 0.8;
+                //lch.l *= bglch.l < 60 ? 1 : 0.8;
             }
             color = hsl.toString();
             color = lch.toString();
@@ -289,6 +293,12 @@
             ticks.push(domain[1]);
 
             return ticks;
+        },
+
+        invertLabel: function(col) {
+            var c = d3.cie.lch(d3.rgb(col)),
+                bg = d3.cie.lch(d3.rgb(this.theme.colors.background));
+            return bg.l > 60 ? c.l < 60 : c.l > 60;
         }
 
     });
