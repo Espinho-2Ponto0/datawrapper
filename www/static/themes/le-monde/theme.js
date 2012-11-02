@@ -1,6 +1,6 @@
 (function(){
 
-    // Guardian Theme
+    // Le Monde Theme
     // -------------
 
     // Every theme will inherit the properties of this
@@ -8,10 +8,10 @@
     // of them. Also, every theme can extend any other
     // existing theme.
 
-    Datawrapper.Themes.Guardian = _.extend({}, Datawrapper.Themes.Base, {
+    Datawrapper.Themes.LeMonde = _.extend({}, Datawrapper.Themes.Base, {
 
         colors: {
-            palette: ['#e41f25', '#96c22c', '#fdc400', '#2974b9', '#6A3D9A', '#B15928'],
+            palette: ['#0386C3', '#D50303', '#6FAA12', '#FFD500', '#680240', '#F20559', '#1F0D67', '#0CB4AE'],
             positive: '#0089c0',
             negative: '#e41f25',
             background: '#ffffff'
@@ -24,9 +24,7 @@
             },
             hoverDotRadius: 4,
             maxLabelWidth: 80
-        },
-
-        vpadding: 10
+        }
 
     });
 

@@ -32,6 +32,13 @@
                 bpad: me.get('rotate-x-labels') ? bpad + 20 : bpad
             });
 
+            if (c.w <= 400) {
+                c.tpad = 15;
+                c.rpad = 9;
+                c.lpad = 5;
+                c.bpad = 5;
+            }
+
             if (me.lineLabelsVisible()) {
                 c.labelWidth = 0;
                 _.each(me.chart.dataSeries(), function(col) {
@@ -43,8 +50,8 @@
                 c.rpad += c.labelWidth + 20;
             }
 
-            scales.x = scales.x.range([c.lpad+me.yAxisWidth(h)+20, c.w-c.rpad]);
-            scales.y = scales.y.range([c.h-c.bpad, 5]);
+            scales.x = scales.x.range([c.lpad+me.yAxisWidth(h), c.w-c.rpad]);
+            scales.y = scales.y.range([c.h-c.bpad, c.tpad]);
 
             me.yAxis();
 
@@ -90,17 +97,27 @@
                 });
 
                 sw = me.getSeriesLineWidth(col);
+                var palette = me.theme.colors.palette.slice();
 
-                if (true || !directLabeling) {
-                    var palette = me.theme.colors.palette.slice();
-                    for (var i=0; i < baseCol; i++) palette.push(palette.shift());
-                    if (all_series.length > palette.length) {
-                        // add variations of palette colors
-                        $.each(palette, function(i, col) {
-                            palette.push(d3.cie.lch(d3.rgb(col)).darker(-2).toString());
-                        });
+                if (all_series.length < palette.length * 2) {
+                    // we only color lines if there's a reasonable number of them
+                    if (!directLabeling || all_series.length > 4) {
+                        for (var i=0; i < baseCol; i++) palette.push(palette.pop());
+                        if (all_series.length > palette.length) {
+                            // add variations of palette colors
+                            $.each(palette, function(i, col) {
+                                palette.push(d3.cie.lch(d3.rgb(col)).darker(-2).toString());
+                            });
+                        }
+                        me.setSeriesColor(col, palette[(index + baseCol) % palette.length]);
+                    } else {
+                        // use different shades of the same color
+                        var base = palette[baseCol % palette.length],
+                            bLch = d3.cie.lch(d3.rgb(base)),
+                            ml = Math.min(bLch.l, 50),
+                            l = d3.range(81, ml, -(80 - ml) / (all_series.length - 1));
+                        me.setSeriesColor(col, ''+d3.cie.lch(l[index], bLch.c, bLch.h));
                     }
-                    me.setSeriesColor(col, palette[(index + baseCol) % palette.length]);
                 }
 
                 var strokeColor = me.getSeriesColor(col);
@@ -175,7 +192,7 @@
 
         lineLabelsVisible: function() {
             var me = this;
-            return me.chart.dataSeries().length > 1 && me.chart.dataSeries().length < 10;
+            return me.chart.dataSeries().length > 1 && me.chart.dataSeries().length < 10 && me.__canvas.w >= 400;
         },
 
         getDataRowByPoint: function(x, y) {
@@ -229,11 +246,13 @@
                 ticks = me.getYTicks(h),
                 maxw = 0;
 
+            if (me.__canvas.w <= 400) return 4;
+
             _.each(ticks, function(val, t) {
                 val = me.chart.formatValue(val, false);
                 maxw = Math.max(maxw, me.labelWidth(val));
             });
-            return maxw;
+            return maxw+20;
         },
 
         yAxis: function() {

@@ -482,16 +482,11 @@
 
         colors: {
             palette: ['#6E7DA1', '#64A4C4', '#53CCDD',  '#4EF4E8'],
-            highlight: '#00589E',
-            focus: '#0063A5',
-            context: '#aaa',
-            axis: '#000000',
-            grid: '#999999',
             positive: '#85B4D4',
-            'highlight-positive': '#85B4D4',
             negative: '#E31A1C',
-            'highlight-negative': '#9E5800',
-            background: '#ffffff'
+            // colors background and text needs to be set in CSS as well!
+            background: '#ffffff',
+            text: '#000000'
         },
 
         locale: 'de_DE',
@@ -742,10 +737,16 @@
                rowNames: header ? header.data : undefined,
                rowNameLabels: header ? header.name : undefined
             };
-         },
+         }, // end parseDataArray
 
          arrData = parseCSV(this.__delimiterPatterns, data, this.delimiter);
-         if (this.transpose) arrData = transpose(arrData);
+         if (this.transpose) {
+            arrData = transpose(arrData);
+            // swap row/column header setting
+            var t = this.firstRowIsHeader;
+            this.firstRowIsHeader = this.firstColumnIsHeader;
+            this.firstColumnIsHeader = t;
+         }
          return parseDataArray(arrData, this.skipRows, this.emptyValue, this.firstRowIsHeader, this.firstColumnIsHeader);
       },
 
