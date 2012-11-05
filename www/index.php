@@ -4,8 +4,16 @@
  * Datawrapper main index
  *
  */
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+
+
+// load YAML parser and config
+require_once '../vendor/spyc/spyc.php';
+$GLOBALS['dw_config'] = Spyc::YAMLLoad('../config.yaml');
+
+if ($GLOBALS['dw_config']['debug'] == true) {
+    error_reporting(E_ALL);
+    ini_set('display_errors', 1);
+}
 
 define('DATAWRAPPER_VERSION', '1.0');
 
@@ -27,15 +35,12 @@ set_include_path("../lib/core/build/classes" . PATH_SEPARATOR . get_include_path
 require_once '../vendor/Slim-Extras/Views/TwigView.php';
 TwigView::$twigDirectory = '../vendor/Twig';
 
-// load YAML parser and config
-require_once '../vendor/spyc/spyc.php';
-$GLOBALS['dw_config'] = Spyc::YAMLLoad('../config.yaml');
-
 
 $app = new Slim(array(
     'view' => new TwigView(),
     'templates.path' => '../templates'
 ));
+
 
 // Load twig instance
 $twig = $app->view()->getEnvironment();
@@ -53,7 +58,7 @@ function toJSON($arr) {
 }
 
 // Twig Extension to clean HTML from malicious code
-require_once '../vendor/htmlpurifier/library/HTMLPurifier.auto.php';
+require_once '../vendor/htmlpurifier/HTMLPurifier.standalone.php';
 $config = HTMLPurifier_Config::createDefault();
 $config->set('HTML.Allowed', 'a[href],p,b,u,i,q,blockquote,*[style]');
 $_HTMLPurifier = new HTMLPurifier($config);
@@ -211,6 +216,7 @@ $app->get('/phpinfo', function() use ($app) {
  * This method should be called last. This is responsible for executing
  * the Slim application using the settings and routes defined above.
  */
+
 $app->run();
 
 
