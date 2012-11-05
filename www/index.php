@@ -52,6 +52,18 @@ function toJSON($arr) {
     return json_encode($arr);
 }
 
+// Twig Extension to clean HTML from malicious code
+require_once '../vendor/htmlpurifier/library/HTMLPurifier.auto.php';
+$config = HTMLPurifier_Config::createDefault();
+$config->set('HTML.Allowed', 'a[href],p,b,u,i,q,blockquote,*[style]');
+$_HTMLPurifier = new HTMLPurifier($config);
+$twig->addFilter('purify', new Twig_Filter_Function('str_purify'));
+
+function str_purify($dirty_html) {
+    global $_HTMLPurifier;
+    return $_HTMLPurifier->purify($dirty_html);
+}
+
 // loae I18n extension for Twig
 $twig->addExtension(new Twig_Extension_I18n());
 
@@ -70,9 +82,9 @@ function add_header_vars(&$page, $active = null) {
     $headlinks = array();
     $headlinks[] = array('url' => '/chart/create', 'id' => 'chart', 'title' => _('Create Chart'), 'icon' => 'pencil');
     if ($user->isLoggedIn() && $user->hasCharts()) {
-        $headlinks[] = array('url' => '/mycharts', 'id' => 'mycharts', 'title' => _('My Charts'), 'icon' => 'signal');
+        $headlinks[] = array('url' => '/mycharts/', 'id' => 'mycharts', 'title' => _('My Charts'), 'icon' => 'signal');
     } else {
-        $headlinks[] = array('url' => '/gallery', 'id' => 'gallery', 'title' => _('Gallery'), 'icon' => 'signal');
+        $headlinks[] = array('url' => '/gallery/', 'id' => 'gallery', 'title' => _('Gallery'), 'icon' => 'signal');
     }
     $headlinks[] = array('url' => '/docs', 'id' => 'about', 'title' => _('About'), 'icon' => 'info-sign');
     $headlinks[] = array('url' => 'http://blog.datawrapper.de', 'id' => 'blog', 'title' => _('Blog'), 'icon' => 'tag');
@@ -142,8 +154,10 @@ function add_header_vars(&$page, $active = null) {
     if (isset($GLOBALS['dw_config']['piwik'])) {
         $page['PIWIK_URL'] = $GLOBALS['dw_config']['piwik']['url'];
         $page['PIWIK_IDSITE'] = $GLOBALS['dw_config']['piwik']['idSite'];
+        if (isset($GLOBALS['dw_config']['piwik']['idSiteNoCharts'])) {
+            $page['PIWIK_IDSITE_NO_CHARTS'] = $GLOBALS['dw_config']['piwik']['idSiteNoCharts'];
+        }
     }
-
 }
 
 

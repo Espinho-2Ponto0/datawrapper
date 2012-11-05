@@ -27,7 +27,7 @@
             var me = this, el = me.__root,
                 width = $(document).width();
             // no padding for thumbnails
-            if (width <= 400) {
+            if (width <= 350) {
                 me.theme.vpadding = 10;
                 me.theme.hpadding = 0;
             }
@@ -199,6 +199,16 @@
             var l = $('<div class="label'+(className ? ' '+className : '')+'"><span>'+txt+'</span></div>');
             this.__root.append(l);
             var w = $('span', l).width();
+            l.remove();
+            return w;
+        },
+
+        labelHeight: function(txt, className, width) {
+            // returns the width of a label
+            var l = $('<div class="label'+(className ? ' '+className : '')+'"><span>'+txt+'</span></div>');
+            l.width(width);
+            this.__root.append(l);
+            var w = $('span', l).height();
             l.remove();
             return w;
         },
