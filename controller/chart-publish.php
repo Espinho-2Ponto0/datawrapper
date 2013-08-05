@@ -1,7 +1,6 @@
 <?php
 
 
-require_once '../lib/utils/visualizations.php';
 require_once '../lib/utils/themes.php';
 require_once '../vendor/jsmin/jsmin.php';
 
@@ -16,21 +15,22 @@ $app->get('/chart/:id/publish', function ($id) use ($app) {
     check_chart_writable($id, function($user, $chart) use ($app) {
 
         $cfg = $GLOBALS['dw_config'];
-        if (empty($cfg['publish'])) {
-            $iframe_src = 'http://' . $cfg['chart_domain'] . '/' . $chart->getID() . '/';
-        } else {
-            $pub = get_module('publish', '../lib/');
-            $iframe_src = $pub->getUrl($chart);
-        }
+        $local_url = 'http://' . $cfg['chart_domain'] . '/' . $chart->getID() . '/index.html';
+        $public_url = $chart->getPublicUrl();
+
+        if (empty($public_url)) $public_url = $local_url;
+
 
         $page = array(
             'chartData' => $chart->loadData(),
             'chart' => $chart,
-            'visualizations' => get_visualizations_meta('', true),
-            'vis' => get_visualization_meta($chart->getType()),
-            'iframe' => $iframe_src.'?rev='.rand(0,100),
-            'themes' => get_themes_meta(),
+            'visualizations' => DatawrapperVisualization::all(),
+            'vis' => DatawrapperVisualization::get($chart->getType()),
+            'chartUrl' => $public_url,
+            'chartUrlLocal' => '/chart/' . $chart->getID() . '/preview',
+            'themes' => DatawrapperTheme::all(),
             'exportStaticImage' => !empty($cfg['phantomjs']),
+            'chartActions' => DatawrapperHooks::execute(DatawrapperHooks::GET_CHART_ACTIONS, $chart),
             'estExportTime' => ceil(JobQuery::create()->estimatedTime('export') / 60)
         );
         add_header_vars($page, 'chart');
@@ -38,14 +38,21 @@ $app->get('/chart/:id/publish', function ($id) use ($app) {
 
         if ($user->isAbleToPublish()
             && ($chart->getLastEditStep() == 3 || $app->request()->get('republish') == 1)) {
+
+            $published_urls = DatawrapperHooks::execute(DatawrapperHooks::GET_PUBLISHED_URL, $chart);
+            if (!empty($published_urls)) {
+                $chart->setPublicUrl($published_urls[0]);
+                $page['chartUrl'] = $published_urls[0];
+            } else {
+                $chart->setPublicUrl($local_url);
+            }
+            $chart->save();
+
             // generate thumbnails
-            $page['thumbnails'] = $GLOBALS['dw_config']['thumbnails'];
-            $app->render('chart-generate-thumbnails.twig', $page);
+            $page['publish'] = true;
 
-        } else {
-
-            $app->render('chart-publish.twig', $page);
         }
+        $app->render('chart-publish.twig', $page);
 
     });
 });

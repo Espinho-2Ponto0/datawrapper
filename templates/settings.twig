@@ -204,19 +204,7 @@ $(function() {
 
     $('#resend-activation-link').click(function(e) {
         e.preventDefault();
-        $.ajax({
-            url: '/api/account/resend-activation',
-            type: 'POST',
-            dataType: 'json',
-            success: function(res) {
-                console.log(res);
-                if (res.status == 'ok') {
-                    DW.logMessage(res.data, $(e.target).parent());
-                } else {
-                    DW.logError(res.message, $(e.target).parent());
-                }
-            }
-        });
+        DW.resendActivationMail($(e.target).parent());
     });
 
     // save profile
@@ -264,12 +252,10 @@ $(function() {
 
             $.getJSON('/api/auth/salt', function(res) {
                 if (res.status == 'ok') {
-                    var salt = res.data.salt, time = res.data.time,
+                    var salt = res.data.salt
                         hmac = CryptoJS.HmacSHA256,
-                        hash = hmac(hmac(curPwd, salt).toString(), String(time)).toString(),
                         payload = {
-                            oldpwhash: hash,
-                            time: time,
+                            oldpwhash: hmac(curPwd, salt).toString(),
                             pwd: CryptoJS.HmacSHA256(pwd, salt).toString()
                         };
 
@@ -285,7 +271,11 @@ $(function() {
                         success: function(data) {
                             submit.removeClass('loading');
                             if (data.status == 'ok') {
-                                DW.logMessage('{% trans "Congrats! Your password has been changed." %}', parent);
+                                if (data.data.updated.indexOf('password') >= 0) {
+                                    DW.logMessage('{% trans "Congrats! Your password has been changed." %}', parent);
+                                } else {
+                                    DW.logError('{% trans "Could not change your password. Please double check your current password." %}', parent);
+                                }
                             } else {
                                 DW.logError(data.message, parent);
                             }
@@ -315,28 +305,32 @@ $(function() {
     $('#really-delete-account').click(function() {
         $.getJSON('/api/auth/salt', function(r) {
             if (r.status == 'ok') {
+                var cpwd = CryptoJS.HmacSHA256($('#confirm-pwd').val(), r.data.salt).toString();
                 $.ajax({
-                    url: '/api/users/current',
+                    url: '/api/users/current?pwd='+cpwd,
                     type: 'DELETE',
                     data: JSON.stringify({
-                        pwd: CryptoJS.HmacSHA256($('#confirm-pwd').val(), r.data.salt).toString()
+                        pwd: cpwd
                     }),
-                    dataType: 'json',
-                    success: function(res) {
-                        if (res.status == 'ok') {
-                            $('#confirmDeletion .modal-body').remove();
-                            $('#confirmDeletion .modal-footer').remove();
-                            $('#confirmDeletion .post-delete').css({
-                                'text-align': 'center',
-                                'padding': '30px'
-                            });
-                            $('#confirmDeletion .post-delete').addClass('modal-body');
-                            $('#confirmDeletion .post-delete').show();
-                        } else {
-                            DW.logError(res.message, $('#confirm-pwd').parent());
-                        }
+                    dataType: 'json'
+                }).done(function(res) {
+                    if (res.status == 'ok') {
+                        $('#confirmDeletion .modal-body').remove();
+                        $('#confirmDeletion .modal-footer').remove();
+                        $('#confirmDeletion .post-delete').css({
+                            'text-align': 'center',
+                            'padding': '30px'
+                        });
+                        $('#confirmDeletion .post-delete').addClass('modal-body');
+                        $('#confirmDeletion .post-delete').show();
+                    } else {
+                        DW.logError(res.message, $('#confirm-pwd').parent());
                     }
+                }).fail(function(res) {
+                    DW.logError('could not delete user: ' + JSON.stringify(res), $('#confirm-pwd').parent());
                 });
+            } else {
+                DW.logError('could not load salt', $('#confirm-pwd').parent());
             }
         });
     });

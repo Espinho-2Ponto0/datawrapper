@@ -1,6 +1,6 @@
 {% block header %}
 
-    <div class="navbar navbar-fixed-top">
+    <div class="navbar navbar-fixed-top{% if invert_navbar %} navbar-inverse{% endif %}">
         <div class="navbar-inner">
             <div class="container" style="position:relative">
                  <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
@@ -10,11 +10,12 @@
                 </a>
 
                 <a class="brand" href="/">
-                    <!--[if IE ]>
-                    <img src="/static/img/abzv-logo.png">
-                    <![endif]-->
-                    <img class="hide-from-ie" src="/static/img/abzv-logo.svg" alt="ABZV" height="30" width="69" />
-                    Datawrapper<span class="beta"></span>
+                    {% if config.custom_logo %}<!--[if IE ]>
+                        <img src="/static/custom/{{ config.custom_logo | replace({'.svg':'.png'})}}">
+                        <![endif]-->
+                        <img class="hide-from-ie" src="/static/custom/{{ config.custom_logo }}" />
+                    {% endif %}
+                    {% if config.custom_title %}{{ config.custom_title }}{% else %}Datawrapper{% endif %}<span class="beta">{{ config.custom_title_tag }}</span>
                 </a>
 
                 <div class="nav-collapse">

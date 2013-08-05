@@ -14,3 +14,10 @@ scripts/history.php
 fabfile.py*
 archive.tar
 *.log
+www/static/visualizations/treemap
+www/static/visualizations/dot-plot
+www/static/vendor/d3js/d3.scale.js
+www/static/custom/*
+test/result/*
+crowdin.yaml
+

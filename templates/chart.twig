@@ -4,6 +4,9 @@
     <meta http-equiv="X-UA-Compatible" content="IE=Edge"/>
     <title>{{ chart.title }}</title>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <!--[if lt IE 7]>
+    <meta http-equiv="refresh" content="0;URL='static.html'">
+    <![endif]-->
     <!--[if lt IE 9]>
     <script src="/static/vendor/json-js/json2.min.js"></script>
     <script type="text/javascript">
@@ -11,21 +14,16 @@
     <![endif]-->
     {% if innersvg %}
     <script type="text/javascript" src="/static/vendor/innersvg/innersvg.js"></script>
-    <style>
-        body { padding: 0!important; }
-        html, body { overflow: hidden; }
-        .label { display: none!important;}
-    </style>
     {% endif %}
 
-    {# markup for twitter cards #}
+{# markup for twitter cards #}
     <meta name="twitter:card" content="player">
     <meta name="twitter:site" content="@datawrapper">
-    <meta name="twitter:url" content="https://c-datawrapper.s3.amazonaws.com/{{ chart.id }}/index.html">
+    <meta name="twitter:url" content="{{ chart.publicUrl }}">
     <meta name="twitter:title" content="{{ chart.title }}">
     <meta name="twitter:description" content="{{ chart.metadata.describe.intro }}">
-    <meta name="twitter:image" content="http://c-datawrapper.s3.amazonaws.com/{{ chart.id }}/m.png">
-    <meta name="twitter:player" content="https://c-datawrapper.s3.amazonaws.com/{{ chart.id }}/plain.html">
+    <meta name="twitter:image" content="{{ chart.thumbUrl }}">
+    <meta name="twitter:player" content="{{ chart.plainUrl }}">
     <meta name="twitter:player:width" content="435">
     <meta name="twitter:player:height" content="251">
 
@@ -34,10 +32,6 @@
 {% endfor %}
 
     <style type="text/css">
-
-        /*
-         * FULLSCREEN CSS
-         */
 
         html body.chart.fullscreen {
             margin: 0;
@@ -50,6 +44,16 @@
         #header {
             min-height: 1px;
             position: relative;
+        }
+
+        #header .header-right {
+            position: absolute;
+            right: 10px;
+            z-index: 20;
+        }
+
+        .fullscreen #header .header-right {
+            right: 200px;
         }
 
         #footer {
@@ -69,14 +73,17 @@
         .fullscreen p {
             font-size: 15px;
             margin-right: 200px!important;
+        }
 
+        .fullscreen #header label {
+            font-size: 15px;
         }
 
         .fullscreen .logo {
             right: 100px;
         }
 
-        .fullscreen .label span {
+        .fullscreen .label {
             font-size: 15px;
         }
 
@@ -165,6 +172,10 @@
 
     </style>
 
+    <script type="text/javascript">
+    window.__locale = '{{ chartLocale }}';
+    </script>
+
 {% for src in scripts %}
     <script type="text/javascript" src="{{ src }}"></script>
 {% endfor %}
@@ -198,7 +209,7 @@
                 mb = $('#chart').css('margin-bottom').replace('px', ''),
                 maxH = $(window).height() - ch - 2;
             // IE Fix
-            if ($.browser.msie) maxH -= 10;
+            if (!$.support.leadingWhitespace) maxH -= 15;
             maxH -= $('body').css('padding-top').replace('px', '');
             maxH -= $('body').css('padding-bottom').replace('px', '');
             return maxH;
@@ -206,33 +217,23 @@
 
         function loadChart() {
             // clean chart
-            $('#chart').html('');
+            $('#chart').html('').off('click').off('mousemove').off('mouseenter').off('mouseover');
             $('#header .legend').remove();
             //$('.container').height($(window).height());
-            // initialize theme
-            var theme = Datawrapper.Themes.{{ theme.id | classify }},
-                thumb = false;
-            {% if thumb %}
-            theme.padding.bottom = 0;
-            theme.padding.top = 0;
-            theme.padding.left = 0;
-            theme.padding.left = 0;
-            theme.vpadding = 0;
-            theme.hpadding = 0;
-            thumb = true;
-            {% endif %}
-            // initialize chart
+
+            var theme = Datawrapper.Themes.{{ theme.id | classify }};
             var chart = new Datawrapper.Chart(JSON.parse('{{ chart.toJSON | raw }}'));
             chart.setLocale('{{ chartLocale }}', {{ metricPrefix | json | raw }});
 
-            // initliaze visualization
             var vis = new Datawrapper.Visualizations.{{ visualization.id | classify }}();
+            vis.meta = JSON.parse("{{ visualization | json | escape('js') }}");
+            vis.lang = '{{ lang }}';
 
             // compute chart dimensions
             var w = $('#chart').innerWidth(),
                 h = getMaxChartHeight($('#chart'));
 
-            if ($.browser.msie) w -= 10; // IE Fix
+            if (!$.support.leadingWhitespace) w -= 10; // IE Fix
             w -= $('body').css('padding-left').replace('px', '');
             w -= $('body').css('padding-right').replace('px', '');
 
@@ -240,10 +241,7 @@
                 .setSize(w - theme.hpadding*2, h - theme.vpadding);
 
             vis.load(chart, function() {
-                vis.render('#chart', thumb);
-                if (thumb) {
-                   $('.label').remove();
-                }
+                vis.render('#chart');
             });
             window.vis = vis;
         }
@@ -251,7 +249,7 @@
         loadChart();
 
         var reload_timer;
-        if (!$.browser.msie && navigator.userAgent.match(/iPad/i) == null) {
+        if (navigator.userAgent.match(/iPad|msie/i) == null) {
             // IE continuosly reloads the chart for some strange reasons
             $(window).resize(function() {
                 if (reload_timer) clearTimeout(reload_timer);
@@ -293,7 +291,7 @@
     {# some convenient short cuts for theme templates #}
     {% set title = chart.title %}{% set intro = chart.metadata.describe.intro %}{% set source = chart.metadata.describe['source-name'] %}{% set sourceURL = chart.metadata.describe['source-url'] %}
 
-    {% include theme.hasTemplate ? 'themes/' ~ theme.id ~ '.twig' : 'themes/default.twig' %}
-    {{ trackingCode | raw }}
+    {% include theme.template ? theme.template : 'plugins/theme-default/default.twig' %}
+    {{ hook('after_chart_body', chart) }}
 </body>
 </html>
