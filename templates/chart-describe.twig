@@ -4,6 +4,31 @@
 
 {{ parent() }}
 
+<style type="text/css">
+
+table.htCore tr td {
+    font-size: 1.1em;
+    font-family: Helvetica;
+    font-weight: 400;
+    padding: 3px 6px;
+}
+
+.table thead th {
+    cursor: pointer;
+}
+
+.table thead th.ignored {
+    background: #b99;
+}
+.table td.ignored {
+    color: #999;
+    text-decoration: line-through
+}
+
+</style>
+<link rel="stylesheet" type="text/css" href="/static/vendor/handsontable/jquery.handsontable.full.css">
+<link rel="stylesheet" type="text/css" href="/static/vendor/handsontable/jquery.handsontable.bootstrap.css">
+<script type="text/javascript" src="/static/vendor/handsontable/jquery.handsontable.full.js"></script>
 <script type="text/javascript">
 $(function() {
 
@@ -31,7 +56,7 @@ $(function() {
             $('#number-currency').hide();
             $('#number-unit').show();
         }
-        $('#number-currency, #number-unit, #number-divisor').attr('disabled', $('#number-format').val() == '-');
+       //$('#number-currency, #number-unit, #number-divisor').attr('disabled', $('#number-format').val() == '-');
     }
     $('#number-format').change(swapUnitAndCurrency);
     swapUnitAndCurrency();
@@ -42,7 +67,7 @@ $(function() {
         Globalize.culture("{{ chartLocale }}").numberFormat.currency.symbol = $('#number-currency option:selected').data('symbol');
         curOpt.each(function(i, el) {
             el = $(el);
-            el.html(Globalize.format(1234.56, el.val()));
+            el.html(Globalize.format(1234.567, el.val()));
         });
     }
     updateCurrencyInNumberFormat();
@@ -50,7 +75,7 @@ $(function() {
 
     // update data table after format changes
     $('.number-format').change(function() {
-        updateTable(DW.dataView, chart);
+        updateTable(DW.dataset, chart);
     });
 
     function updateTable(dataset, chart) {
@@ -59,45 +84,111 @@ $(function() {
             return val === null || val === undefined || (_.isNumber(val) && isNaN(val));
         }
 
-        var table = $('#data-preview'),
-            horzHeaders = chart.get('metadata.data.horizontal-header'),
+        var data = [];
+
+        var horzHeaders = chart.get('metadata.data.horizontal-header'),
             vertHeaders = chart.get('metadata.data.vertical-header'),
             transpose = chart.get('metadata.data.transpose'),
-            i, colCnt = dataset.series().length + (dataset.hasRowNames() ? 1 : 0);
-        table.html('');  // empty table
-        table.append('<thead><tr></tr><thead><tbody></tbody>');
+            colCnt = dataset.series().length + (dataset.hasRowNames() ? 1 : 0),
+            i;
 
-        table.addClass(transpose ? 'row-series' : 'column-series');
-        table.removeClass(transpose ? 'column-series' : 'row-series');
+        dataset.ignoreIgnores = true;
 
-        for (i=0; i < colCnt; i++) {
-            table.append('<colgroup style="width:'+(100 / colCnt)+'%" />');
-        }
-
-        if (horzHeaders) {
-            var thead = $('thead tr', table);
-            if (vertHeaders) thead.append('<th></th>');
+        //if (horzHeaders) {
+            var tr = [];
+            if (vertHeaders) tr.push('');
             _.each(dataset.series(), function(s) {
-                thead.append('<th>'+(!isNone(s.name) ? '<span>'+s.name+'</span>' : '')+'</th>');
+                tr.push((!isNone(s.name) ? s.name : ''));
             });
-        }
+            data.push(tr);
+        //}
 
-        if (vertHeaders) table.addClass('vert-header'); else table.removeClass('vert-header');
-
-        var tbody = $('tbody', table);
         dataset.eachRow(function(row) {
-            var tr = $('<tr></tr>');
+            var tr = [];
             if (dataset.hasRowNames()) {
-                tr.append('<th><span>'+(!isNone(dataset.rowName(row)) ? dataset.rowName(row) : '')+'</span></th>');
+                tr.push(!isNone(dataset.rowName(row)) ? dataset.rowName(row) : '');
             }
             dataset.eachSeries(function(s, i) {
                 var val = s.data[row];
                 val = chart.formatValue(val, true);
-                tr.append('<td>'+(!isNone(s.data[row]) ? val : '')+'</td>');
+                tr.push((!isNone(s.data[row]) ? $("<div />").html(val).text() : ''));
             });
-            tbody.append(tr);
+            data.push(tr);
         });
 
+        var ignoreSeries = _.clone(chart.get('metadata.data.ignore-series', {}));
+
+        function myRenderer(instance, td, row, col, prop, value, cellProperties) {
+            Handsontable.TextCell.renderer.apply(this, arguments);
+            if (parseInt(value, 10) < 0) { //if row contains negative number
+                td.className = 'negative'; //add class "negative"
+            } else {
+                td.className = '';
+            }
+            if (row === 0) {
+                td.style.borderBottom = '1px solid #000';
+                td.style.fontWeight = 'bold';
+                td.style.background = '#eef4ff';
+            }
+            if (vertHeaders && col === 0) {
+                if (horzHeaders && row === 0) td.style.background = '#dde4ef';
+                else td.style.background = row % 2 ? '#f3f8ff': '#eef4ff' ;
+                td.style.borderRight = '1px solid #000';
+                td.style.fontWeight = 'bold';
+            } else if (row > horzHeaders ? 1 : 0) {
+                td.style.background = row % 2 ? '#FFF' : '#f9f9f9';
+            }
+
+            if (ignoreSeries[data[0][col]]) {
+                td.className = 'ignored';
+            } else {
+                td.className = '';
+            }
+        }
+
+        $("#data-preview").handsontable({
+            data: data,
+            allowHtml: true,
+            startRows: 6,
+            startCols: 8,
+            width: $("#data-preview").width(),
+            height: 400,
+            fixedRowsTop: horzHeaders ? 1: 0,
+            fixedColumnsLeft: vertHeaders ? 1: 0,
+            rowHeaders: true,
+            colHeaders: true,
+            fillHandle: false,
+            stretchH: 'all',
+            cells: function (row, col, prop) {
+                return {
+                    type: {
+                        renderer: myRenderer,
+                        readOnly: true
+                    }
+                };
+            }
+        });
+
+        $('#data-preview table').addClass('table table-bordered');
+
+        // add event handler for ignoring data series
+        $('.colHeader').each(function(i, el) {
+            var th = $(el).parents('th');
+            if (i === 0 && vertHeaders) return;
+            var sn = data[0][i];
+            th.data('series', sn);
+            if (ignoreSeries[sn]) th.addClass('ignored');
+            th.click(function() {
+                if (ignoreSeries[sn]) {
+                    ignoreSeries[sn] = false;
+                    th.removeClass('ignored');
+                } else {
+                    ignoreSeries[sn] = true;
+                    th.addClass('ignored');
+                }
+                chart.set('metadata.data.ignore-series', _.clone(ignoreSeries));
+            });
+        });
     }
 
     function reload(f) {
@@ -110,7 +201,7 @@ $(function() {
             }
             DW.dataset = ds;
             updateTable(ds, chart);
-        }, true);
+        });
     }
 
     $('#describe-source-url').blur(function() {
@@ -131,7 +222,7 @@ $(function() {
 
 </script>
 
-<div class="dw-create-describe">
+<div class="dw-create-describe chart-editor">
 
     <div class="row">
 
@@ -139,7 +230,10 @@ $(function() {
 
             <h2>{% trans "Check and Describe Your Data" %}</h2>
 
-            <p>{% trans "Please check if the data format was recognized correctly." %}</p>
+            <p>
+                {% trans "Please check if the data format was recognized correctly." %}
+                {% trans "You can hide columns by clicking the table header." %}
+            </p>
 
             <form class="form-inline">
                 <div id="csv-parse-options" class="row">
@@ -151,10 +245,7 @@ $(function() {
                 </div>
             </form>
 
-            <div style="overflow-x:scroll; overflow-y: visible; width:100%">
-                <table id="data-preview" class="table table-striped">
-                </table>
-            </div>
+            <div id="data-preview"></div>
         </div>
 
         <div class="span4"><div class="well">
@@ -205,11 +296,14 @@ $(function() {
                 <div class="control-group">
                     <label class="control-label" for="text-title">{% trans "Devide numbers by" %}</label>
                     <div class="controls">
-                        <select class="span1 number-format" id="number-divisor">
+                        <select class="number-format" id="number-divisor"  style="width:90%">
                             <option value="0">-</option>
                             <option value="3">{% trans "1000" %}</option>
                             <option value="6">{% trans "1 million" %}</option>
                             <option value="9">{% trans "1 billion" %}</option>
+                            <optgroup label="⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯"></optgroup>
+                            <option value="-2">{% trans "One Percent" %}</option>
+
                         </select>
                     </div>
                 </div>

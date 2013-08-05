@@ -6,46 +6,15 @@
  */
 
 
-// load YAML parser and config
-require_once '../vendor/spyc/spyc.php';
-$GLOBALS['dw_config'] = Spyc::YAMLLoad('../config.yaml');
 
-if ($GLOBALS['dw_config']['debug'] == true) {
-    error_reporting(E_ALL);
-    ini_set('display_errors', 1);
-}
+define('DATAWRAPPER_VERSION', '1.4.3');  // must be the same as in package.json
 
-define('DATAWRAPPER_VERSION', '1.1');
+define('ROOT_PATH', '../');
 
-// Require the Slim PHP 5 Framework
-require '../vendor/Slim/Slim.php';
+require_once '../lib/utils/check_server.php';
+check_server();
 
-// Include the main Propel script
-// Initialize Propel with the runtime configuration
-// Add the generated 'classes' directory to the include path
-require_once '../vendor/propel/runtime/lib/Propel.php';
-Propel::init("../lib/core/build/conf/datawrapper-conf.php");
-set_include_path("../lib/core/build/classes" . PATH_SEPARATOR . get_include_path());
-
-
-
-// Load TwigView
-require_once '../vendor/Slim-Extras/Views/TwigView.php';
-TwigView::$twigDirectory = '../vendor/Twig';
-
-$app = new Slim(array(
-    'view' => new TwigView(),
-    'templates.path' => '../templates',
-    'session.handler' => null
-));
-
-
-require '../lib/session/database.php';
-
-// include datawrapper session serialization
-require '../lib/session/Datawrapper.php';
-
-
+require '../lib/bootstrap.php';
 
 // Load twig instance
 $twig = $app->view()->getEnvironment();
@@ -74,23 +43,23 @@ function str_purify($dirty_html) {
     return $_HTMLPurifier->purify($dirty_html);
 }
 
+function call_hook() {
+    call_user_func_array(array(DatawrapperHooks::getInstance(), 'execute'), func_get_args());
+}
+$twig->addFunction('hook', new Twig_Function_Function('call_hook'));
+
+
 // loae I18n extension for Twig
 $twig->addExtension(new Twig_Extension_I18n());
 
 require_once '../lib/utils/i18n.php';
 require_once '../lib/utils/disable_cache.php';
 
-// Load CDN publishing class
-if (!empty($GLOBALS['dw_config']['publish']) && !empty($GLOBALS['dw_config']['publish']['requires'])) {
-    foreach($GLOBALS['dw_config']['publish']['requires'] as $lib) {
-        require_once '../' . $lib;
-    }
-}
-
 
 function add_header_vars(&$page, $active = null) {
     // define the header links
     global $app;
+    $config = $GLOBALS['dw_config'];
     if (!isset($active)) {
         $active = explode('/', $app->request()->getResourceUri());
         $active = $active[1];
@@ -98,34 +67,43 @@ function add_header_vars(&$page, $active = null) {
 
     $user = DatawrapperSession::getUser();
     $headlinks = array();
-    $headlinks[] = array('url' => '/chart/create', 'id' => 'chart', 'title' => _('Create Chart'), 'icon' => 'pencil');
-    if ($user->isLoggedIn() && $user->hasCharts()) {
-        $headlinks[] = array('url' => '/mycharts/', 'id' => 'mycharts', 'title' => _('My Charts'), 'icon' => 'signal');
-    } else {
-        $headlinks[] = array('url' => '/gallery/', 'id' => 'gallery', 'title' => _('Gallery'), 'icon' => 'signal');
+    if ($user->isLoggedIn() || empty($config['prevent_guest_charts'])) {
+        $headlinks[] = array(
+            'url' => '/chart/create',
+            'id' => 'chart',
+            'title' => __('Create Chart'),
+            'icon' => 'pencil'
+        );
     }
-    $headlinks[] = array('url' => '/docs', 'id' => 'about', 'title' => _('About'), 'icon' => 'info-sign');
-    $headlinks[] = array('url' => 'http://blog.datawrapper.de', 'id' => 'blog', 'title' => _('Blog'), 'icon' => 'tag');
 
-    $headlinks[] = array(
-        'url' => '',
-        'id' => 'lang',
-        'dropdown' => array(array(
-            'url' => '#lang-de-DE',
-            'title' => 'Deutsch'
-        ), array(
-            'url' => '#lang-en-GB',
-            'title' => 'English'
-        ), array(
-            'url' => '#lang-fr-FR',
-            'title' => 'Français'
-        ), array(
-            'url' => '#lang-es-ES',
-            'title' => 'Español'
-        )),
-        'title' => _('Language'),
-        'icon' => 'font'
-    );
+    if ($user->isLoggedIn() && $user->hasCharts()) {
+        $headlinks[] = array('url' => '/mycharts/', 'id' => 'mycharts', 'title' => __('My Charts'), 'icon' => 'signal');
+    } else {
+        $headlinks[] = array('url' => '/gallery/', 'id' => 'gallery', 'title' => __('Gallery'), 'icon' => 'signal');
+    }
+
+    if (isset($config['navigation'])) foreach ($config['navigation'] as $item) {
+        $link = array('url' => str_replace('%lang%', substr(DatawrapperSession::getLanguage(), 0, 2), $item['url']), 'id' => $item['id'], 'title' => __($item['title']));
+        if (!empty($item['icon'])) $link['icon'] = $item['icon'];
+        $headlinks[] = $link;
+    }
+    // language dropdown
+    if (!empty($config['languages'])) {
+        $langDropdown = array(
+            'url' => '',
+            'id' => 'lang',
+            'dropdown' => array(),
+            'title' => __('Language'),
+            'icon' => 'font'
+        );
+        foreach ($config['languages'] as $lang) {
+            $langDropdown['dropdown'][] = array(
+                'url' => '#lang-'.$lang['id'],
+                'title' => $lang['title']
+            );
+        }
+        if (count($langDropdown['dropdown']) > 1) $headlinks[] = $langDropdown;
+    }
     if ($user->isLoggedIn()) {
         $shortenedMail = $user->getEmail();
         $shortenedMail = strlen($shortenedMail) > 18 ? substr($shortenedMail, 0, 9).'...'.substr($shortenedMail, strlen($shortenedMail)-9) : $shortenedMail;
@@ -137,11 +115,11 @@ function add_header_vars(&$page, $active = null) {
             'dropdown' => array(array(
                 'url' => '/account/settings',
                 'icon' => 'wrench',
-                'title' => _('Settings')
+                'title' => __('Settings')
             ), array(
                 'url' => '#logout',
                 'icon' => 'off',
-                'title' => _('Logout')
+                'title' => __('Logout')
             ))
         );
         if ($user->isAdmin()) {
@@ -149,14 +127,14 @@ function add_header_vars(&$page, $active = null) {
                 'url' => '/admin',
                 'id' => 'admin',
                 'icon' => 'fire',
-                'title' => _('Admin')
+                'title' => __('Admin')
             );
         }
     } else {
         $headlinks[] = array(
             'url' => '#login',
             'id' => 'login',
-            'title' => _('Login / Sign Up'),
+            'title' => __('Login / Sign Up'),
             'icon' => 'user'
         );
     }
@@ -167,19 +145,43 @@ function add_header_vars(&$page, $active = null) {
     $page['user'] = DatawrapperSession::getUser();
     $page['language'] = substr(DatawrapperSession::getLanguage(), 0, 2);
     $page['locale'] = DatawrapperSession::getLanguage();
-    $page['DW_DOMAIN'] = $GLOBALS['dw_config']['domain'];
+    $page['DW_DOMAIN'] = $config['domain'];
     $page['DW_VERSION'] = DATAWRAPPER_VERSION;
-    $page['DW_CHART_CACHE_DOMAIN'] = $GLOBALS['dw_config']['chart_domain'];
-    $page['ADMIN_EMAIL'] = $GLOBALS['dw_config']['admin_email'];
+    $page['DW_CHART_CACHE_DOMAIN'] = $config['chart_domain'];
+    $page['ADMIN_EMAIL'] = $config['email']['admin'];
+    $page['config'] = $config;
+    $page['invert_navbar'] = substr($config['domain'], -4) == '.pro';
 
-    $analyticsMod = get_module('analytics', '../lib/');
-    $page['trackingCode'] = !empty($analyticsMod) ? $analyticsMod->getTrackingCode() : '';
+    $uri = $app->request()->getResourceUri();
+    $plugin_assets = DatawrapperHooks::execute(DatawrapperHooks::GET_PLUGIN_ASSETS, $uri);
+    if (!empty($plugin_assets)) {
+        $plugin_js_files = array();
+        $plugin_css_files = array();
+        foreach ($plugin_assets as $files) {
+            if (!is_array($files)) $files = array($files);
+            foreach ($files as $file) {
+                if (substr($file, -3) == '.js') $plugin_js_files[] = $file;
+                if (substr($file, -4) == '.css') $plugin_css_files[] = $file;
+            }
+        }
+        $page['plugin_js'] = $plugin_js_files;
+        $page['plugin_css'] = $plugin_css_files;
+    }
 
-    if (isset($GLOBALS['dw_config']['piwik'])) {
-        $page['PIWIK_URL'] = $GLOBALS['dw_config']['piwik']['url'];
-        $page['PIWIK_IDSITE'] = $GLOBALS['dw_config']['piwik']['idSite'];
-        if (isset($GLOBALS['dw_config']['piwik']['idSiteNoCharts'])) {
-            $page['PIWIK_IDSITE_NO_CHARTS'] = $GLOBALS['dw_config']['piwik']['idSiteNoCharts'];
+    if (isset($config['piwik'])) {
+        $page['PIWIK_URL'] = $config['piwik']['url'];
+        $page['PIWIK_IDSITE'] = $config['piwik']['idSite'];
+        if (isset($config['piwik']['idSiteNoCharts'])) {
+            $page['PIWIK_IDSITE_NO_CHARTS'] = $config['piwik']['idSiteNoCharts'];
+        }
+    }
+
+    if ($config['debug']) {
+        if (file_exists('../.git')) {
+            // parse git branch
+            $head = file_get_contents('../.git/HEAD');
+            $parts = explode("/", $head);
+            $page['BRANCH'] = ' ('.trim($parts[count($parts)-1]).')';
         }
     }
 }
@@ -188,10 +190,10 @@ function add_header_vars(&$page, $active = null) {
 function add_editor_nav(&$page, $step) {
     // define 4 step navigation
     $steps = array();
-    $steps[] = array('index'=>1, 'id'=>'upload', 'title'=>_('Upload Data'));
-    $steps[] = array('index'=>2, 'id'=>'describe', 'title'=>_('Check & Describe'));
-    $steps[] = array('index'=>3, 'id'=>'visualize', 'title'=>_('Visualize'));
-    $steps[] = array('index'=>4, 'id'=>'publish', 'title'=>_('Publish & Embed'));
+    $steps[] = array('index'=>1, 'id'=>'upload', 'title'=>__('Upload Data'));
+    $steps[] = array('index'=>2, 'id'=>'describe', 'title'=>__('Check & Describe'));
+    $steps[] = array('index'=>3, 'id'=>'visualize', 'title'=>__('Visualize'));
+    $steps[] = array('index'=>4, 'id'=>'publish', 'title'=>__('Publish & Embed'));
     $page['steps'] = $steps;
     $page['chartLocale'] = $page['locale'];
     $page['metricPrefix'] = get_metric_prefix($page['chartLocale']);
@@ -201,10 +203,11 @@ function add_editor_nav(&$page, $step) {
 
 require_once '../lib/utils/errors.php';
 require_once '../lib/utils/check_chart.php';
-require_once '../lib/utils/get_module.php';
 require_once '../controller/home.php';
+require_once '../controller/login.php';
 require_once '../controller/account-settings.php';
 require_once '../controller/account-activate.php';
+require_once '../controller/account-set-password.php';
 require_once '../controller/account-reset-password.php';
 require_once '../controller/chart-create.php';
 require_once '../controller/chart-edit.php';
@@ -221,17 +224,42 @@ require_once '../controller/xhr.php';
 require_once '../controller/docs.php';
 require_once '../controller/gallery.php';
 require_once '../controller/admin.php';
+require_once '../controller/plugin-templates.php';
+
 
 $app->notFound(function() {
     error_not_found();
 });
 
 
-if ($GLOBALS['dw_config']['debug']) {
+if ($dw_config['debug']) {
     $app->get('/phpinfo', function() use ($app) {
         phpinfo();
     });
 }
+
+/*
+ * before processing any other route we check if the
+ * user is not logged in and if prevent_guest_access is activated.
+ * if both is true we redirect to /login
+ */
+$app->hook('slim.before.router', function () use ($app, $dw_config) {
+    $user = DatawrapperSession::getUser();
+    if (!$user->isLoggedIn() && !empty($dw_config['prevent_guest_access'])) {
+        $req = $app->request();
+
+        if (UserQuery::create()->filterByRole('admin')->count() > 0) {
+            if ($req->getResourceUri() != '/login') {
+                $app->redirect('/login');
+            }
+        } else {
+            if ($req->getResourceUri() != '/setup') {
+                $app->redirect('/setup');
+            }
+        }
+    }
+});
+
 
 /**
  * Step 4: Run the Slim application
@@ -241,5 +269,4 @@ if ($GLOBALS['dw_config']['debug']) {
  */
 
 $app->run();
-
 

@@ -1,0 +1,7 @@
+{
+    "version": "1.4.3",
+    "author": "Gregor Aisch & Edouard Richard",
+    "dependencies": {
+        "visualization": "*"
+    }
+}
